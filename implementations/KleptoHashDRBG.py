@@ -36,7 +36,10 @@ class KHashDRBG1(HashDRBG):
             attempts += 1
             coins = sum_bytes(coins, bytes([attempts]))
             status, bits, new_state = super()._generate_algorithm(working_state, requested_number_of_bits, coins)
-            if status != DRBGStatus.SUCCESS:
+            if status == DRBGStatus.RESEED_REQUIRED:
+                working_state = HashDRBGState(working_state.get_value(), working_state.get_C(), 1,
+                                              working_state.security_strength, working_state.prediction_resistance_flag)
+            elif status != DRBGStatus.SUCCESS:
                 return status, None, None
 
             decoded = HMAC.new(self.__pkey, msg=bits, digestmod=SHA1).digest()
@@ -152,20 +155,43 @@ class KHashDRBG2(HashDRBG):
         elif prediction_resistance_request and not working_state.prediction_resistance_flag:
             return DRBGStatus.ERROR_FLAG, None
 
-        attempts = 0
-        coins = additional_input
-        const_binary = format(int.from_bytes(working_state.get_C(), "big"), "b").zfill(self._HashDRBG__seedlen)
-
+        reseed_required_flag = False
         while True:
-            attempts += 1
-            coins = sum_bytes(coins, bytes([attempts]))
-            status, bits, new_state = super()._generate_algorithm(working_state, requested_number_of_bits, coins)
-            if status != DRBGStatus.SUCCESS:
-                return status, None
+            if reseed_required_flag or prediction_resistance_request:
+                status = self.reseed(state_handle, prediction_resistance_request, additional_input)
+                if status != DRBGStatus.SUCCESS:
+                    return status, None
 
-            decoded = HMAC.new(self.__pkey, msg=bits, digestmod=SHA1).digest()
-            d_loc = (int.from_bytes(decoded[:2], "big") % self._HashDRBG__seedlen) + 1
-            d_value = decoded[2] % 2
+                additional_input = bytes(0)
+                reseed_required_flag = False
+                working_state = HashDRBGState(working_state.get_value(), working_state.get_C(), 1,
+                                              working_state.security_strength, working_state.prediction_resistance_flag)
+
+            attempts = 0
+            coins = additional_input
+            const_binary = format(int.from_bytes(working_state.get_C(), "big"), "b").zfill(self._HashDRBG__seedlen)
+            d_loc, d_value = -1, -1
+
+            while True:
+                attempts += 1
+                coins = sum_bytes(coins, bytes([attempts]))
+                status, bits, new_state = super()._generate_algorithm(working_state, requested_number_of_bits, coins)
+
+                if status == DRBGStatus.RESEED_REQUIRED:
+                    reseed_required_flag = True
+                    prediction_resistance_flag = working_state.prediction_resistance_flag
+                    if prediction_resistance_flag:
+                        prediction_resistance_request = True
+                    break
+                elif status != DRBGStatus.SUCCESS:
+                    return status, None
+
+                decoded = HMAC.new(self.__pkey, msg=bits, digestmod=SHA1).digest()
+                d_loc = (int.from_bytes(decoded[:2], "big") % self._HashDRBG__seedlen) + 1
+                d_value = decoded[2] % 2
+
+                if int(const_binary[-d_loc]) == d_value or attempts == self.__max_attempts:
+                    break
 
             if int(const_binary[-d_loc]) == d_value or attempts == self.__max_attempts:
                 break

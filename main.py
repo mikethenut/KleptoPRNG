@@ -43,12 +43,13 @@ def test_attack():
         print(DRBG_status_to_string(status))
         exit(1)
     else:  # generated constant in bits
-        print(format(int.from_bytes(KHashPRNG._DRBG__states[state_handle].get_C(), "big"), "b").zfill(seedlen))
+        secret = format(int.from_bytes(KHashPRNG._DRBG__states[state_handle].get_C(), "big"), "b").zfill(seedlen)
+        print(secret)
 
     constant = list("x" * seedlen)
     pkey = bytes([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
 
-    for i in range(2*seedlen):
+    for i in range(seedlen):
         status, bits = KHashPRNG.generate(state_handle, 32, prediction_resistance_request=False)
         if status != DRBGStatus.SUCCESS:
             print(DRBG_status_to_string(status))
@@ -62,7 +63,19 @@ def test_attack():
 
     print("".join(constant))
 
+    equal = 0
+    different = 0
+    unknown = 0
+    for c, s in zip(constant, secret):
+        if c == 'x':
+            unknown += 1
+        elif c == s:
+            equal += 1
+        else:
+            different += 1
+
+    print("%d correct, %d incorrect, %d unknown" % (equal, different, unknown))
+
 
 if __name__ == "__main__":
-    print(1e6)
-    generate_sample_outputs_hash(1e6)
+    test_attack()
