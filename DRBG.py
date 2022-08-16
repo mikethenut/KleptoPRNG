@@ -198,7 +198,7 @@ class DRBG:
         if working_state is None:
             return DRBGStatus.ERROR_FLAG, None
 
-        if requested_number_of_bits > self._max_number_of_bits_per_request:
+        if requested_number_of_bits > self._max_number_of_bits_per_request or requested_number_of_bits <= 0:
             return DRBGStatus.ERROR_FLAG, None
 
         if requested_security_strength is None:

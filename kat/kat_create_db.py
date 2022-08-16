@@ -22,7 +22,7 @@ def create_hash_kat(no_of_tests):
         print("Error encountered while creating hash generate KAT.")
 
 
-def create_hash_instantiate_kat(no_of_tests, db_name='kat_hash_instantiate.db'):
+def create_hash_instantiate_kat(no_of_tests, db_name='kat/kat_hash_instantiate.db'):
     conn = sqlite3.connect(db_name)
 
     for hash_fun in ["SHA-224", "SHA-512/224", "SHA3-224", "SHA-256", "SHA-512/256", "SHA3-256",
@@ -70,7 +70,7 @@ def create_hash_instantiate_kat(no_of_tests, db_name='kat_hash_instantiate.db'):
     return DRBGStatus.SUCCESS
 
 
-def create_hash_reseed_kat(no_of_tests, db_name='kat_hash_reseed.db'):
+def create_hash_reseed_kat(no_of_tests, db_name='kat/kat_hash_reseed.db'):
     conn = sqlite3.connect(db_name)
 
     for hash_fun in ["SHA-224", "SHA-512/224", "SHA3-224", "SHA-256", "SHA-512/256", "SHA3-256",
@@ -130,7 +130,7 @@ def create_hash_reseed_kat(no_of_tests, db_name='kat_hash_reseed.db'):
     return DRBGStatus.SUCCESS
 
 
-def create_hash_generate_kat(no_of_tests, db_name='kat_hash_generate.db'):
+def create_hash_generate_kat(no_of_tests, db_name='kat/kat_hash_generate.db'):
     conn = sqlite3.connect(db_name)
 
     for hash_fun in ["SHA-224", "SHA-512/224", "SHA3-224", "SHA-256", "SHA-512/256", "SHA3-256",

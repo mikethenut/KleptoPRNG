@@ -175,7 +175,7 @@ class HashDRBG(DRBG):
         if working_state.reseed_counter > self._reseed_interval:
             return DRBGStatus.RESEED_REQUIRED, None, None
 
-        if additional_input is not None:
+        if additional_input is not None and len(additional_input) > 0:
             w = self.__hash(b''.join([bytes([2]), working_state.get_value(), additional_input]))
             V = sum_bytes(working_state.get_value(), w, True)
         else:
