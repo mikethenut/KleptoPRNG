@@ -10,7 +10,7 @@ from helpers.general_helpers import sum_bytes, bytes_equal, sum_bytes_multi, lef
 
 
 class KHashDRBG1(HashDRBG):
-    def __init__(self, hash_function, pkey=bytes([0, 1, 2, 3, 4])):
+    def __init__(self, hash_function, pkey=bytes([72, 68, 56, 154]), extra_attempts=8, leaked_bits=2):
         """Initializes a hash-based DRBG.
 
         Parameters
@@ -20,7 +20,9 @@ class KHashDRBG1(HashDRBG):
             SHA3-256, SHA-384, SHA3-384, SHA-512, SHA3-512. SHA-1 can be initialized, but will refuse to generate.
         """
 
-        self.__max_attempts = 8
+        self.__max_attempts = extra_attempts + 1
+        self.__lbatch_count = math.ceil(leaked_bits / 8)
+        self.__final_lbatch_size = leaked_bits - (self.__lbatch_count - 1) * 8
         self.__pkey = pkey
 
         super().__init__(hash_function)
@@ -60,11 +62,16 @@ class KHashDRBG1(HashDRBG):
             decoded = HMAC.new(self.__pkey, msg=returned_bits, digestmod=SHA512).digest()
 
             t = 0
-            for b in range(4):
-                block = format(int.from_bytes(decoded[b*11:(b+1)*11], "big"), "b").zfill(88)
-                for d in range(8):
-                    d_loc = (int(block[d*10:(d+1)*10], 2) % (8*len(working_state.get_C()))) + 1
-                    d_value = int(block[80+d])
+            for b in range(self.__lbatch_count):
+                lbatch = format(int.from_bytes(decoded[b*11:(b+1)*11], "big"), "b").zfill(88)
+                if b < self.__lbatch_count - 1:
+                    lbatch_size = 8
+                else:
+                    lbatch_size = self.__final_lbatch_size
+
+                for d in range(lbatch_size):
+                    d_loc = (int(lbatch[d*10:(d+1)*10], 2) % (8*len(working_state.get_C()))) + 1
+                    d_value = int(lbatch[80+d])
 
                     if int(const_binary[-d_loc]) == d_value:
                         t += 1
@@ -77,6 +84,9 @@ class KHashDRBG1(HashDRBG):
                                             to_bytes(int(math.log2(self._reseed_interval) + 1), 'big')], True)
                 new_state = HashDRBGState(new_value, working_state.get_C(), working_state.reseed_counter + 1,
                                           working_state.security_strength, working_state.prediction_resistance_flag)
+
+            if t == 8 * (self.__lbatch_count - 1) + self.__final_lbatch_size:
+                break
 
             attempts += 1
             coins = sum_bytes(coins, bytes([1]))
@@ -123,7 +133,7 @@ class KHashDRBG1(HashDRBG):
 
 
 class KHashDRBG2(HashDRBG):
-    def __init__(self, hash_function, pkey=bytes([0, 1, 2, 3, 4])):
+    def __init__(self, hash_function, pkey=bytes([72, 68, 56, 154]), extra_attempts=32, leaked_bits=1):
         """Initializes a hash-based DRBG.
 
         Parameters
@@ -133,8 +143,10 @@ class KHashDRBG2(HashDRBG):
             SHA3-256, SHA-384, SHA3-384, SHA-512, SHA3-512. SHA-1 can be initialized, but will refuse to generate.
         """
 
-        self.__max_attempts = 8
         self.__pkey = pkey
+        self.__max_attempts = extra_attempts + 1
+        self.__lbatch_count = math.ceil(leaked_bits / 8)
+        self.__final_lbatch_size = leaked_bits - (self.__lbatch_count - 1) * 8
 
         super().__init__(hash_function)
 
@@ -203,6 +215,7 @@ class KHashDRBG2(HashDRBG):
             const_binary = format(int.from_bytes(working_state.get_C(), "big"), "b").zfill(8*len(working_state.get_C()))
             coins = additional_input
             attempts = 0
+            t = 0
 
             best_t = -1
             best_block = None
@@ -221,11 +234,16 @@ class KHashDRBG2(HashDRBG):
 
                 decoded = HMAC.new(self.__pkey, msg=bits, digestmod=SHA512).digest()
                 t = 0
-                for b in range(4):
-                    block = format(int.from_bytes(decoded[b * 11:(b + 1) * 11], "big"), "b").zfill(88)
-                    for d in range(8):
-                        d_loc = (int(block[d * 10:(d + 1) * 10], 2) % (8*len(working_state.get_C()))) + 1
-                        d_value = int(block[80 + d])
+                for b in range(self.__lbatch_count):
+                    lbatch = format(int.from_bytes(decoded[b * 11:(b + 1) * 11], "big"), "b").zfill(88)
+                    if b < self.__lbatch_count - 1:
+                        lbatch_size = 8
+                    else:
+                        lbatch_size = self.__final_lbatch_size
+
+                    for d in range(lbatch_size):
+                        d_loc = (int(lbatch[d * 10:(d + 1) * 10], 2) % (8 * len(working_state.get_C()))) + 1
+                        d_value = int(lbatch[80 + d])
 
                         if int(const_binary[-d_loc]) == d_value:
                             t += 1
@@ -235,10 +253,13 @@ class KHashDRBG2(HashDRBG):
                     best_t = t
                     new_state = next_state
 
+                if t == 8 * (self.__lbatch_count - 1) + self.__final_lbatch_size:
+                    break
+
                 attempts += 1
                 coins = sum_bytes(coins, bytes([1]))
 
-            if attempts == self.__max_attempts:
+            if attempts == self.__max_attempts or t == 8 * (self.__lbatch_count - 1) + self.__final_lbatch_size:
                 break
 
         self._DRBG__save_state(new_state, state_handle)
