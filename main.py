@@ -1,7 +1,9 @@
 import re
 
+from implementations.HashDRBG import HashDRBG
 from implementations.KleptoHashDRBG import KHashDRBG1, KHashDRBG2
 from helpers.DRBG_status import DRBGStatus, DRBG_status_to_string
+from helpers.general_helpers import bytes_to_string
 from testing.subversion_test import test_throughput, test_speed, plot_efficiency
 
 
@@ -32,4 +34,4 @@ def generate_sample_outputs_hash(HashDRBGImpl, total_bits_per_hash):
 
 
 if __name__ == "__main__":
-    generate_sample_outputs_hash(KHashDRBG2, 1000000)
+    generate_sample_outputs_hash(HashDRBG, 1000000)
